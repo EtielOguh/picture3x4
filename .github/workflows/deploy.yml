@@ -29,7 +29,9 @@ jobs:
         run: npm ci
       - name: Compilar aplicação
         run: npm run build
-      - name: Configurar Pages
+      # O repositório precisa estar habilitado uma vez em:
+      # Settings → Pages → Build and deployment → Source: GitHub Actions.
+      - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
       - name: Preparar artefato
         uses: actions/upload-pages-artifact@v4

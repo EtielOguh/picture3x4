@@ -173,6 +173,17 @@ git pull --rebase origin main
 
 Para diagnosticar uma falha de publicação, consulte os detalhes da execução na aba **Actions**. O build publicado deve sempre conter `index.html` diretamente na raiz de `dist/`.
 
+#### Erro `Get Pages site failed: Not Found`
+
+Esse erro acontece quando o workflow é executado antes de o Pages ser habilitado no repositório. Faça a configuração inicial:
+
+1. Abra `https://github.com/USUARIO/REPOSITORIO/settings/pages`.
+2. Em **Build and deployment**, escolha **GitHub Actions** em **Source**.
+3. Volte à aba **Actions**.
+4. Abra a execução que falhou e selecione **Re-run all jobs**; alternativamente, faça um novo push.
+
+Não adicione `enablement: true` usando apenas o `GITHUB_TOKEN` padrão. A ação `configure-pages` exige outro token com permissões administrativas para habilitar o Pages automaticamente. A ativação manual é necessária somente uma vez e evita armazenar um token adicional no repositório.
+
 ## Privacidade
 
 - Todo o processamento da fotografia acontece localmente no navegador. Não existe backend, banco de dados, login, analytics ou upload para APIs.
