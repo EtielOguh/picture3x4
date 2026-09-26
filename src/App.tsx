@@ -7,7 +7,7 @@ import { DEFAULT_ADJUSTMENTS, renderPhoto } from './services/image/render'
 import { processPhoto } from './services/vision/engine'
 import type { FrameAdjustments, ProcessedPhoto, ProcessingStep } from './types/photo'
 
-const BRAND_LOGO = `${import.meta.env.BASE_URL}brand/gilana-presentes.jpeg`
+const BRAND_LOGO = new URL(`${import.meta.env.BASE_URL}brand/gilana-presentes.jpeg`, window.location.href).href
 const PROCESSING_LABELS = [
   'Detectando pessoa...',
   'Removendo fundo...',

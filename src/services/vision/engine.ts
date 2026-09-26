@@ -10,7 +10,7 @@ import { clearCanvas } from '../image/dispose'
 import { refinePersonMask } from './maskRefinement'
 
 const MAX_INFERENCE_EDGE = 1024
-const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`
+const asset = (path: string) => new URL(`${import.meta.env.BASE_URL}${path}`, window.location.href).href
 
 let enginePromise: Promise<{ faceDetector: FaceDetector; segmenter: ImageSegmenter }> | null = null
 

@@ -64,28 +64,114 @@ A resolução é configurada em `src/config/output.ts` por meio de `targetHeight
 
 O botão **AJUSTAR** revela somente deslocamento horizontal/vertical, zoom uniforme, pequena rotação e restauração do enquadramento automático. Uma moldura 3:4 é sobreposta à prévia apenas na interface. Cada alteração limpa o canvas e recompõe a saída usando diretamente a fotografia segmentada em alta resolução, nunca o resultado da alteração anterior; assim não há recompressão nem perda progressiva.
 
-## Desenvolvimento
+## Instalação, desenvolvimento e publicação
 
-Requer Node.js 22 ou mais recente.
+Requer Node.js 22 ou mais recente e uma conta no GitHub. A aplicação é totalmente estática e não precisa de servidor, banco de dados ou domínio próprio.
+
+### 1. Instalar as dependências
+
+Na pasta do projeto, execute:
 
 ```bash
 npm install
+```
+
+O `package-lock.json` deve permanecer versionado. No GitHub Actions, o projeto usa `npm ci` para fazer uma instalação reproduzível.
+
+### 2. Executar em desenvolvimento
+
+```bash
 npm run dev
 ```
 
-Validação de produção:
+Abra o endereço mostrado pelo Vite, normalmente `http://localhost:5173/`.
+
+### 3. Gerar o build de produção
 
 ```bash
-npm run lint
 npm run build
+```
+
+O resultado será criado em `dist/`. Para conferir esse build localmente:
+
+```bash
 npm run preview
 ```
 
-## GitHub Pages
+Também é possível executar a validação de código separadamente:
 
-O `vite.config.ts` usa caminhos relativos, então a aplicação funciona na URL de qualquer repositório (`https://usuario.github.io/repositorio/`) sem domínio próprio. O workflow em `.github/workflows/deploy.yml` compila e publica a pasta `dist` quando há um push na branch `main`.
+```bash
+npm run lint
+```
 
-No repositório, abra **Settings → Pages → Build and deployment** e selecione **GitHub Actions**. Depois disso, um push em `main` publica a aplicação.
+### 4. Criar o repositório
+
+Crie um repositório vazio no GitHub, sem domínio personalizado. Depois, caso a pasta ainda não seja um repositório Git, execute:
+
+```bash
+git init
+git branch -M main
+git remote add origin https://github.com/USUARIO/REPOSITORIO.git
+```
+
+Substitua `USUARIO` e `REPOSITORIO` pelos nomes reais. Se `origin` já existir, não repita o último comando; confira com `git remote -v`.
+
+### 5. Adicionar, registrar e enviar os arquivos
+
+```bash
+git add .
+git commit -m "Publica Foto 3x4"
+git push -u origin main
+```
+
+Não adicione fotografias de clientes ao diretório do projeto. A aplicação nunca grava as fotos selecionadas no sistema de arquivos.
+
+### 6. Ativar o GitHub Pages
+
+No repositório do GitHub:
+
+1. Abra **Settings**.
+2. Entre em **Pages**.
+3. Em **Build and deployment → Source**, selecione **GitHub Actions**.
+4. Abra a aba **Actions** e acompanhe o workflow **Publicar no GitHub Pages**.
+
+Após a publicação, a URL terá este formato:
+
+```text
+https://USUARIO.github.io/REPOSITORIO/
+```
+
+O `vite.config.ts` usa `base: './'`. Assim, scripts, CSS, logo, modelos TFLite e arquivos WASM permanecem relativos ao subdiretório do repositório, sem nome de projeto fixo. O código também resolve esses assets por `import.meta.env.BASE_URL`.
+
+O workflow `.github/workflows/deploy.yml` é executado em cada push para `main` e também pode ser iniciado manualmente. Ele:
+
+1. baixa o repositório;
+2. prepara o Node.js;
+3. instala dependências com `npm ci`;
+4. executa `npm run build`;
+5. envia somente `dist/` como artefato;
+6. publica o artefato no GitHub Pages.
+
+### 7. Atualizações futuras
+
+Depois de alterar o sistema, valide e publique novamente:
+
+```bash
+npm install
+npm run lint
+npm run build
+git add .
+git commit -m "Atualiza Foto 3x4"
+git push origin main
+```
+
+O push em `main` inicia uma nova publicação automaticamente. Se outra pessoa também trabalhar no repositório, sincronize antes de editar:
+
+```bash
+git pull --rebase origin main
+```
+
+Para diagnosticar uma falha de publicação, consulte os detalhes da execução na aba **Actions**. O build publicado deve sempre conter `index.html` diretamente na raiz de `dist/`.
 
 ## Privacidade
 
