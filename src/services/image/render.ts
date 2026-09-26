@@ -8,6 +8,7 @@ import {
   type OutputSize,
 } from './autoCrop'
 import { applyConservativeTreatment } from './treatment'
+import { decontaminateTransparentEdges } from './edgeDecontamination'
 
 export const DEFAULT_OUTPUT_SIZE = createThreeByFourSize(OUTPUT_CONFIG.targetHeight)
 export const OUTPUT_WIDTH = DEFAULT_OUTPUT_SIZE.width
@@ -50,5 +51,6 @@ export function renderPhoto(
   // renderizado nunca é reutilizado como entrada, evitando perdas cumulativas.
   context.drawImage(photo.foreground, drawX, drawY, photo.width * scale, photo.height * scale)
   context.restore()
+  decontaminateTransparentEdges(context, output.width, output.height)
   applyConservativeTreatment(context, output.width, output.height)
 }

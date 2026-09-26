@@ -1,43 +1,31 @@
 import {
   FaceDetector,
   FilesetResolver,
-  ImageSegmenter,
   type Detection,
 } from '@mediapipe/tasks-vision'
 import type { DetectedFace, Point, ProcessedPhoto, ProcessingStep } from '../../types/photo'
 import { decodeOrientedImage } from '../image/decode'
 import { clearCanvas } from '../image/dispose'
 import { refinePersonMask } from './maskRefinement'
+import { createPortraitMatte } from './modnet'
 
 const MAX_INFERENCE_EDGE = 1024
 const asset = (path: string) => new URL(`${import.meta.env.BASE_URL}${path}`, window.location.href).href
 
-let enginePromise: Promise<{ faceDetector: FaceDetector; segmenter: ImageSegmenter }> | null = null
+let enginePromise: Promise<FaceDetector> | null = null
 
 async function loadEngine() {
   if (!enginePromise) {
     enginePromise = (async () => {
       const files = await FilesetResolver.forVisionTasks(asset('wasm'))
-      const [faceDetector, segmenter] = await Promise.all([
-        FaceDetector.createFromOptions(files, {
-          baseOptions: {
-            modelAssetPath: asset('models/blaze_face_short_range.tflite'),
-            delegate: 'CPU',
-          },
-          runningMode: 'IMAGE',
-          minDetectionConfidence: 0.45,
-        }),
-        ImageSegmenter.createFromOptions(files, {
-          baseOptions: {
-            modelAssetPath: asset('models/selfie_segmenter.tflite'),
-            delegate: 'CPU',
-          },
-          runningMode: 'IMAGE',
-          outputConfidenceMasks: true,
-          outputCategoryMask: false,
-        }),
-      ])
-      return { faceDetector, segmenter }
+      return FaceDetector.createFromOptions(files, {
+        baseOptions: {
+          modelAssetPath: asset('models/blaze_face_short_range.tflite'),
+          delegate: 'CPU',
+        },
+        runningMode: 'IMAGE',
+        minDetectionConfidence: 0.45,
+      })
     })().catch((error) => {
       enginePromise = null
       throw error
@@ -124,7 +112,7 @@ export async function processPhoto(
     input = inferenceCanvas(source)
 
     onStep('Carregando os modelos locais…')
-    const { faceDetector, segmenter } = await loadEngine()
+    const faceDetector = await loadEngine()
     checkCancelled()
     onStep('Detectando o rosto…')
     const faceResult = faceDetector.detect(input)
@@ -138,20 +126,12 @@ export async function processPhoto(
 
     checkCancelled()
     onStep('Removendo o fundo…')
-    const segmentation = segmenter.segment(input)
-    const mask = segmentation.confidenceMasks?.[0]
-    if (!mask) throw new Error('Não foi possível identificar a pessoa. Tente outra fotografia com o rosto e os ombros visíveis.')
-    const confidence = mask.getAsFloat32Array()
+    const matte = await createPortraitMatte(source, signal)
     onStep('Refinando cabelo e contornos…')
-    let refined: ReturnType<typeof refinePersonMask>
-    try {
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-      checkCancelled()
-      refined = refinePersonMask(source, confidence, mask.width, mask.height)
-      refinedCanvas = refined.canvas
-    } finally {
-      mask.close()
-    }
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    checkCancelled()
+    const refined = refinePersonMask(source, matte.data, matte.width, matte.height)
+    refinedCanvas = refined.canvas
 
     if (!refined.subject || refined.coverage < 0.012 || refined.coverage > 0.985) {
       throw new Error('A segmentação não encontrou uma pessoa com segurança. Tente outra foto com melhor iluminação e contraste com o fundo.')

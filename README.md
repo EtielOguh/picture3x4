@@ -6,8 +6,8 @@ Aplicação web estática para preparar uma foto 3x4 com a pessoa centralizada e
 
 1. Lê JPG, PNG ou WEBP de até 20 MB.
 2. interpreta e corrige a orientação EXIF.
-3. Detecta o rosto e segmenta a pessoa localmente com MediaPipe/WASM.
-4. Refina cabelo e contornos com filtragem edge-aware e converte a máscara em canal alpha.
+3. Detecta o rosto com MediaPipe e gera um matte de retrato com MODNet/ONNX Runtime Web.
+4. Preserva o matte contínuo de cabelo e contornos, reduz halo de cor e o converte em canal alpha.
 5. Calcula automaticamente o enquadramento 3:4.
 6. Aplica correções técnicas conservadoras após o recorte.
 7. Permite ajustar zoom, posição e inclinação.
@@ -21,19 +21,27 @@ src/
 ├── services/
 │   ├── image/
 │   │   ├── decode.ts       # leitura e orientação EXIF
+│   │   ├── edgeDecontamination.ts # correção RGB nas bordas do alpha
 │   │   └── render.ts       # composição 3:4 e exportação PNG
 │   └── vision/
-│       └── engine.ts       # rosto, segmentação e máscara alpha
+│       ├── engine.ts       # coordenação do pipeline de visão
+│       ├── modnet.ts       # matting local com ONNX Runtime Web
+│       └── maskRefinement.ts # matte e limites da pessoa
 ├── types/photo.ts
 ├── App.tsx                 # fluxo e interface
 └── styles.css
 
 public/
-├── models/                 # modelos TFLite executados localmente
+├── models/                 # BlazeFace TFLite e MODNet ONNX locais
+├── ort/                    # runtime ONNX WebAssembly local
 └── wasm/                   # runtime MediaPipe local
 ```
 
-Os modelos são o `BlazeFace Short Range` e o `Selfie Segmenter`, distribuídos pelo projeto MediaPipe. Eles são servidos pelo mesmo host da aplicação e não fazem chamadas a APIs. A fotografia nunca é incluída nessas requisições: somente os arquivos estáticos dos modelos são carregados pelo navegador.
+O `BlazeFace Short Range` detecta o rosto e o `MODNet` produz o matte da pessoa. O MODNet foi escolhido para recorte de retratos e roda por ONNX Runtime Web em WebAssembly. Modelo e runtimes são servidos pelo mesmo host da aplicação e não fazem chamadas a APIs. A fotografia nunca é incluída nessas requisições: somente os arquivos estáticos necessários são carregados pelo navegador.
+
+A inferência mantém a proporção da fotografia e usa o lado menor em 512 px, limitado a 1024 px no lado maior. A composição continua sendo feita a partir da fotografia original; a máscara é ampliada separadamente até 2048 px e não passa por blur acumulado. Depois do crop, somente o RGB de pixels semitransparentes é descontaminado com a cor interna mais próxima; o canal alpha não é alterado nessa etapa.
+
+Na primeira utilização, o navegador precisa carregar o modelo MODNet (aproximadamente 26 MB) e o runtime ONNX WASM (aproximadamente 12 MB). Nas utilizações seguintes, esses assets estáticos podem ser atendidos pelo cache HTTP do navegador.
 
 ### Calibração do crop 3:4
 
@@ -141,7 +149,7 @@ Após a publicação, a URL terá este formato:
 https://USUARIO.github.io/REPOSITORIO/
 ```
 
-O `vite.config.ts` usa `base: './'`. Assim, scripts, CSS, logo, modelos TFLite e arquivos WASM permanecem relativos ao subdiretório do repositório, sem nome de projeto fixo. O código também resolve esses assets por `import.meta.env.BASE_URL`.
+O `vite.config.ts` usa `base: './'`. Assim, scripts, CSS, logo, modelos TFLite/ONNX e arquivos WASM permanecem relativos ao subdiretório do repositório, sem nome de projeto fixo. O código também resolve esses assets por `import.meta.env.BASE_URL`.
 
 O workflow `.github/workflows/deploy.yml` é executado em cada push para `main` e também pode ser iniciado manualmente. Ele:
 
@@ -195,3 +203,9 @@ Não adicione `enablement: true` usando apenas o `GITHUB_TOKEN` padrão. A açã
 - O Git e o GitHub Pages contêm somente código, a logo, o runtime WASM e os modelos locais; fotografias selecionadas nunca são gravadas na pasta do projeto nem enviadas ao GitHub.
 - A exportação usa PNG com canal alpha; pixels removidos recebem transparência, não branco.
 - O navegador baixa apenas código, logo, WASM e modelos que pertencem à própria aplicação.
+
+## Componentes de visão
+
+- [MODNet](https://github.com/ZHKKKe/MODNet), licença Apache-2.0, para matting de retratos.
+- [ONNX Runtime Web](https://github.com/microsoft/onnxruntime), licença MIT, para inferência local em WebAssembly.
+- MediaPipe Tasks Vision para detecção facial local.
