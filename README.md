@@ -1,0 +1,100 @@
+# Foto 3x4
+
+Aplicação web estática para preparar uma foto 3x4 com a pessoa centralizada e o fundo realmente transparente. Todo o processamento acontece localmente no navegador; fotografias não são enviadas, armazenadas ou analisadas por serviços externos.
+
+## O que a aplicação faz
+
+1. Lê JPG, PNG ou WEBP de até 20 MB.
+2. interpreta e corrige a orientação EXIF.
+3. Detecta o rosto e segmenta a pessoa localmente com MediaPipe/WASM.
+4. Refina cabelo e contornos com filtragem edge-aware e converte a máscara em canal alpha.
+5. Calcula automaticamente o enquadramento 3:4.
+6. Aplica correções técnicas conservadoras após o recorte.
+7. Permite ajustar zoom, posição e inclinação.
+8. Exporta um PNG transparente de 900 × 1200 px.
+
+## Arquitetura
+
+```text
+src/
+├── components/             # reservado a componentes compartilhados
+├── services/
+│   ├── image/
+│   │   ├── decode.ts       # leitura e orientação EXIF
+│   │   └── render.ts       # composição 3:4 e exportação PNG
+│   └── vision/
+│       └── engine.ts       # rosto, segmentação e máscara alpha
+├── types/photo.ts
+├── App.tsx                 # fluxo e interface
+└── styles.css
+
+public/
+├── models/                 # modelos TFLite executados localmente
+└── wasm/                   # runtime MediaPipe local
+```
+
+Os modelos são o `BlazeFace Short Range` e o `Selfie Segmenter`, distribuídos pelo projeto MediaPipe. Eles são servidos pelo mesmo host da aplicação e não fazem chamadas a APIs. A fotografia nunca é incluída nessas requisições: somente os arquivos estáticos dos modelos são carregados pelo navegador.
+
+### Calibração do crop 3:4
+
+O enquadramento combina olhos, rosto, estimativa da cabeça, limites da pessoa segmentada e dimensões disponíveis. A pessoa recebe sempre uma única escala uniforme, sem deformação. A saída padrão é 900 × 1200 px e qualquer outra resolução passa pela validação inteira `largura × 4 === altura × 3`.
+
+Os parâmetros visuais ficam em `src/config/crop.ts`:
+
+- `headScale`: escala visual desejada para a cabeça;
+- `faceVerticalPosition`: posição vertical desejada da linha dos olhos;
+- `topMargin`: margem mínima acima da cabeça;
+- `horizontalCenter`: alvo de centralização horizontal.
+
+Esses valores são uma calibração visual inicial da loja, não regras biométricas universais.
+
+### Tratamento técnico
+
+Após o crop, a aplicação analisa apenas os pixels visíveis e limita correções de exposição, balanço de branco, níveis, contraste e saturação. A redução de ruído é aplicada somente em áreas opacas e de baixo contraste; a nitidez não atua nas bordas do recorte, evitando halo. Os limites ficam em `src/config/treatment.ts`.
+
+O tratamento não usa landmarks para mudar o rosto e não contém filtro de beleza, remodelagem facial, aumento de olhos, afinamento, remoção de sinais ou suavização forte de pele.
+
+### Composição e exportação
+
+O canvas final é criado com transparência e nunca recebe preenchimento branco. Antes do download, a aplicação valida a proporção inteira 3:4, a existência simultânea de pixels visíveis e pixels com alpha 0, a assinatura PNG e o color type RGBA do cabeçalho IHDR. O arquivo é gerado exclusivamente com `canvas.toBlob(..., 'image/png')` e baixado como `foto-3x4.png`, sem marca d'água.
+
+A resolução é configurada em `src/config/output.ts` por meio de `targetHeight`; a largura é sempre derivada automaticamente para impedir a criação de uma saída fora da proporção 3:4.
+
+### Ajuste manual simples
+
+O botão **AJUSTAR** revela somente deslocamento horizontal/vertical, zoom uniforme, pequena rotação e restauração do enquadramento automático. Uma moldura 3:4 é sobreposta à prévia apenas na interface. Cada alteração limpa o canvas e recompõe a saída usando diretamente a fotografia segmentada em alta resolução, nunca o resultado da alteração anterior; assim não há recompressão nem perda progressiva.
+
+## Desenvolvimento
+
+Requer Node.js 22 ou mais recente.
+
+```bash
+npm install
+npm run dev
+```
+
+Validação de produção:
+
+```bash
+npm run lint
+npm run build
+npm run preview
+```
+
+## GitHub Pages
+
+O `vite.config.ts` usa caminhos relativos, então a aplicação funciona na URL de qualquer repositório (`https://usuario.github.io/repositorio/`) sem domínio próprio. O workflow em `.github/workflows/deploy.yml` compila e publica a pasta `dist` quando há um push na branch `main`.
+
+No repositório, abra **Settings → Pages → Build and deployment** e selecione **GitHub Actions**. Depois disso, um push em `main` publica a aplicação.
+
+## Privacidade
+
+- Todo o processamento da fotografia acontece localmente no navegador. Não existe backend, banco de dados, login, analytics ou upload para APIs.
+- O arquivo original e os canvases de trabalho existem somente na memória temporária da aba. Nada é salvo em `localStorage`, `sessionStorage`, IndexedDB ou cache da aplicação.
+- A fotografia não é incorporada à URL, ao endereço da página, a parâmetros de consulta ou a logs.
+- **Nova foto** cancela o processamento atual, zera os canvases e remove as referências ao arquivo anterior. Recarregar ou fechar a página descarta toda a memória da sessão.
+- O Blob URL usado para iniciar o download é temporário e sempre revogado logo após o clique.
+- Uma Content Security Policy limita conexões ao próprio endereço da aplicação (`connect-src 'self'`), impedindo envio para APIs externas e serviços de analytics.
+- O Git e o GitHub Pages contêm somente código, a logo, o runtime WASM e os modelos locais; fotografias selecionadas nunca são gravadas na pasta do projeto nem enviadas ao GitHub.
+- A exportação usa PNG com canal alpha; pixels removidos recebem transparência, não branco.
+- O navegador baixa apenas código, logo, WASM e modelos que pertencem à própria aplicação.
