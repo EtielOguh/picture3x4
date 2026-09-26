@@ -134,7 +134,7 @@ function analyze(
     whiteBalance,
     blackPoint: Math.min(low * 0.2, 0.025),
     whitePoint: Math.max(0.965, 1 - (1 - high) * 0.18),
-    levelsBlend: 0.18,
+    levelsBlend: 0.08,
     contrast: 1 + contrastAdjustment,
     saturation: 1 + saturationAdjustment,
     noiseReduction: clamp((noise - 1.4) / 20, 0, config.maxNoiseReduction),

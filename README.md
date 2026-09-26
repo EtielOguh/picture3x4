@@ -6,12 +6,12 @@ Aplicação web estática para preparar uma foto 3x4 com a pessoa centralizada e
 
 1. Lê JPG, PNG ou WEBP de até 20 MB.
 2. interpreta e corrige a orientação EXIF.
-3. Detecta o rosto com MediaPipe e gera um matte de retrato com MODNet/ONNX Runtime Web.
-4. Preserva o matte contínuo de cabelo e contornos, reduz halo de cor e o converte em canal alpha.
+3. Detecta o rosto e combina segmentação humana multiclasse do MediaPipe com MODNet/ONNX Runtime Web.
+4. Preserva cabelo e contornos, rejeita objetos próximos, reduz halo de cor e gera o canal alpha.
 5. Calcula automaticamente o enquadramento 3:4.
 6. Aplica correções técnicas conservadoras após o recorte.
 7. Permite ajustar zoom, posição e inclinação.
-8. Exporta um PNG transparente de 900 × 1200 px.
+8. Exporta um PNG transparente de 1350 × 1800 px.
 
 ## Arquitetura
 
@@ -32,20 +32,20 @@ src/
 └── styles.css
 
 public/
-├── models/                 # BlazeFace TFLite e MODNet ONNX locais
+├── models/                 # BlazeFace, SelfieMulticlass e MODNet locais
 ├── ort/                    # runtime ONNX WebAssembly local
 └── wasm/                   # runtime MediaPipe local
 ```
 
-O `BlazeFace Short Range` detecta o rosto e o `MODNet` produz o matte da pessoa. O MODNet foi escolhido para recorte de retratos e roda por ONNX Runtime Web em WebAssembly. Modelo e runtimes são servidos pelo mesmo host da aplicação e não fazem chamadas a APIs. A fotografia nunca é incluída nessas requisições: somente os arquivos estáticos necessários são carregados pelo navegador.
+O `BlazeFace Short Range` detecta o rosto. O `SelfieMulticlass` identifica separadamente cabelo, pele, rosto e roupa, enquanto o `MODNet` produz o matte detalhado. A fusão usa a segmentação humana para rejeitar cadeira, prateleiras e outros objetos próximos e mantém o MODNet responsável pelos detalhes finos. Todos os modelos rodam localmente por MediaPipe/WASM ou ONNX Runtime Web.
 
-A inferência mantém a proporção da fotografia e usa o lado menor em 512 px, limitado a 1024 px no lado maior. A composição continua sendo feita a partir da fotografia original; a máscara é ampliada separadamente até 2048 px e não passa por blur acumulado. Depois do crop, somente o RGB de pixels semitransparentes é descontaminado com a cor interna mais próxima; o canal alpha não é alterado nessa etapa.
+A inferência mantém a proporção da fotografia e usa o lado menor em 512 px, limitado a 1024 px no lado maior. A composição continua sendo feita a partir da fotografia original; a máscara é ampliada separadamente até 2400 px e não passa por blur acumulado. Um prior visual baseado no rosto e nas orelhas limita resíduos incompatíveis com cabeça, pescoço e ombros sem deformar a pessoa. Depois do crop, somente o RGB de pixels semitransparentes é descontaminado com a cor interna mais próxima; o canal alpha não é alterado nessa etapa.
 
-Na primeira utilização, o navegador precisa carregar o modelo MODNet (aproximadamente 26 MB) e o runtime ONNX WASM (aproximadamente 12 MB). Nas utilizações seguintes, esses assets estáticos podem ser atendidos pelo cache HTTP do navegador.
+Na primeira utilização, o navegador precisa carregar o MODNet (aproximadamente 26 MB), o SelfieMulticlass (aproximadamente 16 MB) e os runtimes locais. Nas utilizações seguintes, esses assets estáticos podem ser atendidos pelo cache HTTP do navegador.
 
 ### Calibração do crop 3:4
 
-O enquadramento combina olhos, rosto, estimativa da cabeça, limites da pessoa segmentada e dimensões disponíveis. A pessoa recebe sempre uma única escala uniforme, sem deformação. A saída padrão é 900 × 1200 px e qualquer outra resolução passa pela validação inteira `largura × 4 === altura × 3`.
+O enquadramento combina olhos, rosto, estimativa da cabeça, limites da pessoa segmentada e dimensões disponíveis. A pessoa recebe sempre uma única escala uniforme, sem deformação. A saída padrão é 1350 × 1800 px e qualquer outra resolução passa pela validação inteira `largura × 4 === altura × 3`.
 
 Os parâmetros visuais ficam em `src/config/crop.ts`:
 
@@ -208,4 +208,4 @@ Não adicione `enablement: true` usando apenas o `GITHUB_TOKEN` padrão. A açã
 
 - [MODNet](https://github.com/ZHKKKe/MODNet), licença Apache-2.0, para matting de retratos.
 - [ONNX Runtime Web](https://github.com/microsoft/onnxruntime), licença MIT, para inferência local em WebAssembly.
-- MediaPipe Tasks Vision para detecção facial local.
+- [MediaPipe Image Segmenter](https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter) com SelfieMulticlass para segmentação humana local.

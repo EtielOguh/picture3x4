@@ -11,7 +11,9 @@ export function decontaminateTransparentEdges(
 ) {
   let image = context.getImageData(0, 0, width, height)
 
-  for (let pass = 0; pass < 2; pass += 1) {
+  // Quatro passagens alcançam a faixa incerta dos modelos em saídas de alta
+  // resolução sem deslocar o contorno ou modificar o canal alpha.
+  for (let pass = 0; pass < 4; pass += 1) {
     const source = image.data
     const output = new Uint8ClampedArray(source)
 
@@ -36,7 +38,7 @@ export function decontaminateTransparentEdges(
         }
 
         if (best < 0 || bestAlpha - alpha < 10) continue
-        const strength = clamp((bestAlpha - alpha) / 170) * 0.72
+        const strength = clamp((bestAlpha - alpha) / 170) * 0.78
         for (let channel = 0; channel < 3; channel += 1) {
           output[index + channel] = source[index + channel] * (1 - strength) + source[best + channel] * strength
         }

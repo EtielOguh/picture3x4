@@ -5,6 +5,6 @@ export type OutputConfig = {
 }
 
 export const OUTPUT_CONFIG: Readonly<OutputConfig> = Object.freeze({
-  targetHeight: 1200,
+  targetHeight: 1800,
   fileName: 'foto-3x4.png',
 })
